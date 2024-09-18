@@ -1,8 +1,12 @@
+## 자르지 않은 AlexNet 모델의 추론 API
+## 추론 시간과 전체 처리 시간 측정
+
 from flask import Flask, request, jsonify
 import tensorflow as tf
 import numpy as np
 from PIL import Image
 import io
+import time
 
 app = Flask(__name__)
 
@@ -29,6 +33,8 @@ def preprocess_image(image):
 # 예측 API 엔드포인트
 @app.route('/predict', methods=['POST'])
 def predict():
+    start_time = time.time()  # 전체 처리 시간 측정 시작
+
     # POST 요청에서 이미지를 가져옴
     if 'file' not in request.files:
         return jsonify({'error': 'No file provided'}), 400
@@ -41,12 +47,26 @@ def predict():
         image = Image.open(io.BytesIO(file.read()))
         processed_image = preprocess_image(image)
 
-        # 모델 예측 수행
+        # 모델 예측 수행 (추론 시간 측정)
+        inference_start_time = time.time()
         prediction = model.predict(processed_image)
+        inference_time = time.time() - inference_start_time
 
-        # 예측 결과 반환
-        return jsonify({'prediction': prediction.tolist()})
+        # 전체 처리 시간 계산
+        total_time = time.time() - start_time
+
+        # 로그 메시지 추가
+        app.logger.info(f"Image: {file.filename}, Prediction: {prediction}, Inference Time: {inference_time}, Total Time: {total_time}")
+
+        # 예측 결과 및 시간 정보 반환
+        return jsonify({
+            'prediction': prediction.tolist(),
+            'inference_time': inference_time,
+            'total_time': total_time
+        })
     except Exception as e:
+        # 에러 로그 추가
+        app.logger.error(f"Error processing image {file.filename}: {str(e)}") 
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
